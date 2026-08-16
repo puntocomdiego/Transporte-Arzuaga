@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { STATUS_LABELS, isShipmentStatus, type ShipmentStatus } from "@/lib/shipment";
 
 type TrackEvent = {
@@ -19,15 +19,17 @@ type TrackResult = {
   events: TrackEvent[];
 };
 
-export function TrackingSearch() {
-  const [value, setValue] = useState("");
+export function TrackingSearch({
+  initialTrackingNumber,
+}: {
+  initialTrackingNumber?: string;
+} = {}) {
+  const [value, setValue] = useState(initialTrackingNumber ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TrackResult | null>(null);
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    const trackingNumber = value.trim();
+  async function runSearch(trackingNumber: string) {
     if (!trackingNumber) return;
 
     setLoading(true);
@@ -47,6 +49,18 @@ export function TrackingSearch() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    if (initialTrackingNumber) {
+      runSearch(initialTrackingNumber.trim());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTrackingNumber]);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    await runSearch(value.trim());
   }
 
   return (

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { SHIPMENT_STATUSES, STATUS_LABELS, type ShipmentStatus } from "@/lib/shipment";
+import { buildTrackingUrl, buildWhatsAppShareLink } from "@/lib/whatsapp";
 
 type ShipmentEvent = {
   id: string;
@@ -48,7 +49,7 @@ export function AdminDashboard({
   const [form, setForm] = useState(emptyForm);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [lastCreated, setLastCreated] = useState<string | null>(null);
+  const [lastCreated, setLastCreated] = useState<Shipment | null>(null);
 
   async function handleLogout() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -74,7 +75,7 @@ export function AdminDashboard({
         return;
       }
       setShipments((prev) => [data.shipment, ...prev]);
-      setLastCreated(data.shipment.trackingNumber);
+      setLastCreated(data.shipment);
       setForm(emptyForm);
     } catch {
       setCreateError("Ocurrió un error. Probá de nuevo.");
@@ -164,9 +165,13 @@ export function AdminDashboard({
 
           {createError && <p className="text-sm text-red-600 sm:col-span-2">{createError}</p>}
           {lastCreated && (
-            <p className="text-sm text-emerald-700 sm:col-span-2">
-              Envío creado. Número de rastreo: <span className="font-mono font-semibold">{lastCreated}</span>
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
+              <p className="text-sm text-emerald-700">
+                Envío creado. Número de rastreo:{" "}
+                <span className="font-mono font-semibold">{lastCreated.trackingNumber}</span>
+              </p>
+              <WhatsAppButton shipment={lastCreated} />
+            </div>
           )}
 
           <button
@@ -226,9 +231,12 @@ function ShipmentRow({
             {shipment.originCity} → {shipment.destinationCity} · {shipment.recipientName}
           </p>
         </div>
-        <span className="rounded-full bg-zinc-900 px-3 py-1 text-sm font-medium text-white">
-          {STATUS_LABELS[shipment.status as ShipmentStatus] ?? shipment.status}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-zinc-900 px-3 py-1 text-sm font-medium text-white">
+            {STATUS_LABELS[shipment.status as ShipmentStatus] ?? shipment.status}
+          </span>
+          <WhatsAppButton shipment={shipment} />
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -259,5 +267,39 @@ function ShipmentRow({
         {ok === false && <span className="text-sm text-red-600">No se pudo actualizar</span>}
       </div>
     </div>
+  );
+}
+
+function WhatsAppButton({ shipment }: { shipment: Shipment }) {
+  if (!shipment.senderPhone) {
+    return (
+      <span
+        title="Cargá el teléfono de quien envía para poder avisarle por WhatsApp"
+        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-400"
+      >
+        Sin teléfono de envío
+      </span>
+    );
+  }
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const link = buildWhatsAppShareLink({
+    phone: shipment.senderPhone,
+    senderName: shipment.senderName,
+    trackingNumber: shipment.trackingNumber,
+    trackingUrl: buildTrackingUrl(origin, shipment.trackingNumber),
+  });
+
+  if (!link) return null;
+
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+    >
+      Enviar WhatsApp
+    </a>
   );
 }
