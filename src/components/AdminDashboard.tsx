@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { SHIPMENT_STATUSES, STATUS_LABELS, type ShipmentStatus } from "@/lib/shipment";
+import { SHIPMENT_STATUSES, SHIPMENTS_PAGE_SIZE, STATUS_LABELS, type ShipmentStatus } from "@/lib/shipment";
 import { buildTrackingUrl, buildWhatsAppShareLink } from "@/lib/whatsapp";
 
 type ShipmentEvent = {
@@ -40,16 +40,38 @@ const emptyForm = {
 export function AdminDashboard({
   username,
   initialShipments,
+  initialTotal,
 }: {
   username: string;
   initialShipments: Shipment[];
+  initialTotal: number;
 }) {
   const router = useRouter();
   const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(initialTotal);
+  const [pageLoading, setPageLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<Shipment | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(total / SHIPMENTS_PAGE_SIZE));
+
+  async function loadPage(targetPage: number) {
+    setPageLoading(true);
+    try {
+      const res = await fetch(`/api/admin/shipments?page=${targetPage}`);
+      const data = await res.json();
+      if (res.ok) {
+        setShipments(data.shipments);
+        setTotal(data.total);
+        setPage(data.page);
+      }
+    } finally {
+      setPageLoading(false);
+    }
+  }
 
   async function handleLogout() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -74,9 +96,14 @@ export function AdminDashboard({
         setCreateError(data.error ?? "No se pudo crear el envío");
         return;
       }
-      setShipments((prev) => [data.shipment, ...prev]);
       setLastCreated(data.shipment);
       setForm(emptyForm);
+      setTotal((prev) => prev + 1);
+      if (page === 1) {
+        setShipments((prev) => [data.shipment, ...prev].slice(0, SHIPMENTS_PAGE_SIZE));
+      } else {
+        await loadPage(1);
+      }
     } catch {
       setCreateError("Ocurrió un error. Probá de nuevo.");
     } finally {
@@ -185,17 +212,41 @@ export function AdminDashboard({
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-medium">Envíos ({shipments.length})</h2>
+        <h2 className="font-medium">Envíos ({total})</h2>
         {shipments.length === 0 && (
           <p className="text-sm text-zinc-500">Todavía no hay envíos registrados.</p>
         )}
-        {shipments.map((shipment) => (
-          <ShipmentRow
-            key={shipment.id}
-            shipment={shipment}
-            onUpdateStatus={handleStatusUpdate}
-          />
-        ))}
+        <div className={pageLoading ? "flex flex-col gap-4 opacity-50" : "flex flex-col gap-4"}>
+          {shipments.map((shipment) => (
+            <ShipmentRow
+              key={shipment.id}
+              shipment={shipment}
+              onUpdateStatus={handleStatusUpdate}
+            />
+          ))}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <button
+              onClick={() => loadPage(page - 1)}
+              disabled={pageLoading || page <= 1}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-zinc-500">
+              Página {page} de {totalPages}
+            </span>
+            <button
+              onClick={() => loadPage(page + 1)}
+              disabled={pageLoading || page >= totalPages}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-40"
+            >
+              Siguiente
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );

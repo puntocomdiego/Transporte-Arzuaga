@@ -1,3 +1,5 @@
+export const SHIPMENTS_PAGE_SIZE = 20;
+
 export const SHIPMENT_STATUSES = [
   "RECIBIDA",
   "EMBARCADA",

@@ -1,20 +1,28 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generateTrackingNumber } from "@/lib/shipment";
+import { generateTrackingNumber, SHIPMENTS_PAGE_SIZE } from "@/lib/shipment";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const shipments = await prisma.shipment.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { events: { orderBy: { createdAt: "asc" } } },
-  });
+  const { searchParams } = new URL(request.url);
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
-  return NextResponse.json({ shipments });
+  const [shipments, total] = await Promise.all([
+    prisma.shipment.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { events: { orderBy: { createdAt: "asc" } } },
+      skip: (page - 1) * SHIPMENTS_PAGE_SIZE,
+      take: SHIPMENTS_PAGE_SIZE,
+    }),
+    prisma.shipment.count(),
+  ]);
+
+  return NextResponse.json({ shipments, total, page, pageSize: SHIPMENTS_PAGE_SIZE });
 }
 
 export async function POST(request: Request) {
