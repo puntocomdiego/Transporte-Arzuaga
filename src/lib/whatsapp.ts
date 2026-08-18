@@ -12,7 +12,7 @@ export function buildTrackingUrl(origin: string, trackingNumber: string): string
 
 export function buildWhatsAppShareLink(params: {
   phone: string | null;
-  senderName: string;
+  recipientName: string;
   trackingNumber: string;
   trackingUrl: string;
 }): string | null {
@@ -20,7 +20,7 @@ export function buildWhatsAppShareLink(params: {
   if (!phone) return null;
 
   const message = [
-    `Hola ${params.senderName}! Tu envío quedó registrado en Transporte Arzuaga.`,
+    `Hola ${params.recipientName}! Te enviaron un paquete por Transporte Arzuaga.`,
     `Número de rastreo: ${params.trackingNumber}`,
     `Podés seguirlo acá: ${params.trackingUrl}`,
   ].join("\n");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { SHIPMENT_STATUSES, SHIPMENTS_PAGE_SIZE, STATUS_LABELS, type ShipmentStatus } from "@/lib/shipment";
 import { buildTrackingUrl, buildWhatsAppShareLink } from "@/lib/whatsapp";
@@ -369,21 +369,25 @@ function ShipmentRow({
 }
 
 function WhatsAppButton({ shipment }: { shipment: Shipment }) {
-  if (!shipment.senderPhone) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  if (!shipment.recipientPhone) {
     return (
       <span
-        title="Cargá el teléfono de quien envía para poder avisarle por WhatsApp"
+        title="Cargá el teléfono del destinatario para poder avisarle por WhatsApp"
         className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-400"
       >
-        Sin teléfono de envío
+        Sin teléfono de destinatario
       </span>
     );
   }
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const link = buildWhatsAppShareLink({
-    phone: shipment.senderPhone,
-    senderName: shipment.senderName,
+    phone: shipment.recipientPhone,
+    recipientName: shipment.recipientName,
     trackingNumber: shipment.trackingNumber,
     trackingUrl: buildTrackingUrl(origin, shipment.trackingNumber),
   });
