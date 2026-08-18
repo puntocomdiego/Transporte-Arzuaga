@@ -124,6 +124,15 @@ export function AdminDashboard({
     return res.ok;
   }
 
+  async function handleDelete(shipmentId: string) {
+    const res = await fetch(`/api/admin/shipments/${shipmentId}`, { method: "DELETE" });
+    if (!res.ok) return false;
+    const nextTotal = Math.max(0, total - 1);
+    const lastPage = Math.max(1, Math.ceil(nextTotal / SHIPMENTS_PAGE_SIZE));
+    await loadPage(Math.min(page, lastPage));
+    return true;
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10">
       <div className="flex items-center justify-between">
@@ -222,6 +231,7 @@ export function AdminDashboard({
               key={shipment.id}
               shipment={shipment}
               onUpdateStatus={handleStatusUpdate}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -255,14 +265,17 @@ export function AdminDashboard({
 function ShipmentRow({
   shipment,
   onUpdateStatus,
+  onDelete,
 }: {
   shipment: Shipment;
   onUpdateStatus: (id: string, status: string, note: string) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
 }) {
   const [status, setStatus] = useState<ShipmentStatus>(shipment.status as ShipmentStatus);
   const [note, setNote] = useState("");
   const [updating, setUpdating] = useState(false);
   const [ok, setOk] = useState<boolean | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleUpdate() {
     setUpdating(true);
@@ -273,14 +286,41 @@ function ShipmentRow({
     setUpdating(false);
   }
 
+  async function handleDelete() {
+    if (
+      !window.confirm(
+        `¿Eliminar el envío ${shipment.trackingNumber}? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    const success = await onDelete(shipment.id);
+    if (!success) setDeleting(false);
+  }
+
+  const eventNotes = shipment.events.filter((ev) => ev.note);
+
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="font-mono font-semibold">{shipment.trackingNumber}</p>
-          <p className="text-sm text-zinc-500">
-            {shipment.originCity} → {shipment.destinationCity} · {shipment.recipientName}
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex flex-wrap items-start gap-4">
+          <div>
+            <p className="font-mono font-semibold">{shipment.trackingNumber}</p>
+            <p className="text-sm text-zinc-500">
+              {shipment.originCity} → {shipment.destinationCity} · {shipment.recipientName}
+            </p>
+          </div>
+          {(shipment.notes || eventNotes.length > 0) && (
+            <div className="flex flex-col gap-0.5 border-l border-zinc-200 pl-4 text-sm text-zinc-600">
+              {shipment.notes && <span>📝 {shipment.notes}</span>}
+              {eventNotes.map((ev) => (
+                <span key={ev.id} className="text-zinc-500">
+                  {STATUS_LABELS[ev.status as ShipmentStatus] ?? ev.status}: {ev.note}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-zinc-900 px-3 py-1 text-sm font-medium text-white">
@@ -316,6 +356,13 @@ function ShipmentRow({
           {updating ? "Guardando…" : "Actualizar estado"}
         </button>
         {ok === false && <span className="text-sm text-red-600">No se pudo actualizar</span>}
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="ml-auto rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+        >
+          {deleting ? "Eliminando…" : "Eliminar"}
+        </button>
       </div>
     </div>
   );
