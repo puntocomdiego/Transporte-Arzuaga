@@ -11,15 +11,21 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const search = searchParams.get("search")?.trim() ?? "";
+
+  const where = search
+    ? { trackingNumber: { contains: search, mode: "insensitive" as const } }
+    : {};
 
   const [shipments, total] = await Promise.all([
     prisma.shipment.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       include: { events: { orderBy: { createdAt: "asc" } } },
       skip: (page - 1) * SHIPMENTS_PAGE_SIZE,
       take: SHIPMENTS_PAGE_SIZE,
     }),
-    prisma.shipment.count(),
+    prisma.shipment.count({ where }),
   ]);
 
   return NextResponse.json({ shipments, total, page, pageSize: SHIPMENTS_PAGE_SIZE });

@@ -55,22 +55,37 @@ export function AdminDashboard({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<Shipment | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
 
   const totalPages = Math.max(1, Math.ceil(total / SHIPMENTS_PAGE_SIZE));
 
-  async function loadPage(targetPage: number) {
+  async function loadPage(targetPage: number, searchTerm: string = search) {
     setPageLoading(true);
     try {
-      const res = await fetch(`/api/admin/shipments?page=${targetPage}`);
+      const params = new URLSearchParams({ page: String(targetPage) });
+      if (searchTerm) params.set("search", searchTerm);
+      const res = await fetch(`/api/admin/shipments?${params}`);
       const data = await res.json();
       if (res.ok) {
         setShipments(data.shipments);
         setTotal(data.total);
         setPage(data.page);
+        setSearch(searchTerm);
       }
     } finally {
       setPageLoading(false);
     }
+  }
+
+  async function handleSearchSubmit(event: FormEvent) {
+    event.preventDefault();
+    await loadPage(1, searchInput.trim());
+  }
+
+  async function handleClearSearch() {
+    setSearchInput("");
+    await loadPage(1, "");
   }
 
   async function handleLogout() {
@@ -98,12 +113,8 @@ export function AdminDashboard({
       }
       setLastCreated(data.shipment);
       setForm(emptyForm);
-      setTotal((prev) => prev + 1);
-      if (page === 1) {
-        setShipments((prev) => [data.shipment, ...prev].slice(0, SHIPMENTS_PAGE_SIZE));
-      } else {
-        await loadPage(1);
-      }
+      setSearchInput("");
+      await loadPage(1, "");
     } catch {
       setCreateError("Ocurrió un error. Probá de nuevo.");
     } finally {
@@ -218,12 +229,44 @@ export function AdminDashboard({
             {creating ? "Creando…" : "Registrar envío"}
           </button>
         </form>
+
+        <form onSubmit={handleSearchSubmit} className="mt-4 flex gap-2 border-t border-zinc-200 pt-4">
+          <input
+            placeholder="Buscar por número de rastreo"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+          />
+          <button
+            type="submit"
+            disabled={pageLoading}
+            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+          >
+            Buscar
+          </button>
+          {search && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              disabled={pageLoading}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50"
+            >
+              Ver todos
+            </button>
+          )}
+        </form>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-medium">Envíos ({total})</h2>
+        <h2 className="font-medium">
+          {search ? `Resultados para "${search}" (${total})` : `Envíos (${total})`}
+        </h2>
         {shipments.length === 0 && (
-          <p className="text-sm text-zinc-500">Todavía no hay envíos registrados.</p>
+          <p className="text-sm text-zinc-500">
+            {search
+              ? "No se encontró ningún envío con ese número de rastreo."
+              : "Todavía no hay envíos registrados."}
+          </p>
         )}
         <div className={pageLoading ? "flex flex-col gap-4 opacity-50" : "flex flex-col gap-4"}>
           {shipments.map((shipment) => (
